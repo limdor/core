@@ -145,7 +145,8 @@ func DefaultClientConfig() ClientConfig {
 }
 
 type Client struct {
-	config ClientConfig
+	config   ClientConfig
+	stopping bool
 }
 
 func NewClient(config ClientConfig) *Client {
@@ -246,13 +247,21 @@ func (c *Client) Start() {
 		Transport: &ochttp.Transport{Base: transport},
 	}
 
+	c.stopping = false
 	wg := new(sync.WaitGroup)
 	wg.Add(c.config.NumPendingRequests)
 	for i := 0; i < c.config.NumPendingRequests; i++ {
-		go c.localProxyWorker(remote, local)
+		go func() {
+			c.localProxyWorker(remote, local)
+			wg.Done()
+		}()
 	}
 	// Waiting for all goroutines to finish (they never do)
 	wg.Wait()
+}
+
+func (c *Client) Stop() {
+	c.stopping = true
 }
 
 func addServiceName(span *trace.Span) {
@@ -719,7 +728,7 @@ func (c *Client) localProxy(remote, local *http.Client) error {
 
 func (c *Client) localProxyWorker(remote, local *http.Client) {
 	log.Printf("Starting to relay server request loop for %s", c.config.ServerName)
-	for {
+	for !c.stopping {
 		err := c.localProxy(remote, local)
 		if err != nil && !errors.Is(err, ErrTimeout) {
 			log.Print(err)

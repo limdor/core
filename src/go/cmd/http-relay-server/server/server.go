@@ -58,6 +58,7 @@ type Server struct {
 	port      int // Port number to listen on
 	blockSize int // Size of i/o buffer in bytes
 	b         *broker
+	stopFunc  context.CancelFunc
 }
 
 func NewServer() *Server {
@@ -526,6 +527,7 @@ func (s *Server) Start(port int, blockSize int) {
 	// request contexts. This is based on:
 	// https://www.rudderstack.com/blog/implementing-graceful-shutdown-in-go/#:~:text=Canceling%20long%20running%20requests
 	mainCtx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	s.stopFunc = stop
 	defer stop()
 
 	h2s := &http2.Server{}
@@ -565,5 +567,12 @@ func (s *Server) Start(port int, blockSize int) {
 		// easily tell. We panic to help debugging: if the environment sets
 		// GOTRACEBACK=all they will see stacktraces after the panic.
 		log.Panicf("Server terminated abnormally: %v", err)
+	}
+}
+
+func (s *Server) Stop() {
+	log.Printf("Stopping relay server")
+	if s.stopFunc != nil {
+		s.stopFunc()
 	}
 }
