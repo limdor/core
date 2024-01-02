@@ -116,16 +116,17 @@ func newTestFixture(b *testing.B, tc TestCase) TestFixture {
 }
 
 func benchmarkHttpRelay(b *testing.B, url string) {
-	b.SetParallelism(10)
 	b.ResetTimer()
-	b.RunParallel(func(pb *testing.PB) {
-		for pb.Next() {
-			_, err := http.Get(url)
-			if err != nil {
-				b.Fatal(err)
-			}
+	for i := 0; i < b.N; i++ {
+		resp, err := http.Get(url)
+		if err != nil {
+			b.Fatal(err)
 		}
-	})
+		_, err = io.ReadAll(resp.Body)
+		if err != nil {
+			b.Fatal(err)
+		}
+	}
 }
 
 func BenchmarkHttpRelay(b *testing.B) {
@@ -134,7 +135,7 @@ func BenchmarkHttpRelay(b *testing.B) {
 		blockSize   int
 	}{
 		{payloadSize: 0, blockSize: 10 * 1024},
-		{payloadSize: 1024, blockSize: 10 * 1024},
+		{payloadSize: 10 * 1024, blockSize: 10 * 1024},
 		{payloadSize: 100 * 1024, blockSize: 10 * 1024},
 	}
 
